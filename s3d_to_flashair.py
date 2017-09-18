@@ -168,37 +168,41 @@ if __name__ == '__main__':
         print err_msg
         if not options.quiet:
           Speak(err_msg)
-        parser.print_help()
+        opt.print_help()
         exit(-1)
-
-    if platform.system == 'Windows':
-      gpx_binary = 'gpx.exe'
-    else:
-      gpx_binary = 'gpx'
-    
-    gpx_filepath = os.path.join(options.dir, gpx_binary)
-    if not options.quiet:
-      Speak('generating x3g file')
-    GenerateX3G(options.file, gpx_filepath)
     
     filename = os.path.basename(options.file)
     dirname = os.path.dirname(options.file)
-    x3g_filename = os.path.splitext(filename)[0] + '.x3g'
+    upload_filepath = filename
+    if options.x3g:
+      if platform.system == 'Windows':
+        gpx_binary = 'gpx.exe'
+      else:
+        gpx_binary = 'gpx'
 
-    if not os.path.exists(os.path.join(dirname, x3g_filename)):
-      time.sleep(10)
+      gpx_filepath = os.path.join(options.dir, gpx_binary)
+      if not options.quiet:
+        Speak('generating x3g file')
+      GenerateX3G(options.file, gpx_filepath)
+
+      x3g_filename = os.path.splitext(filename)[0] + '.x3g'
+
       if not os.path.exists(os.path.join(dirname, x3g_filename)):
-        print 'ERROR: x3g file not found'
-        if not options.quiet:
-          Speak('ERROR, x3g file not found')
-        sys.exit(1)
+        time.sleep(10)
+        if not os.path.exists(os.path.join(dirname, x3g_filename)):
+          print 'ERROR: x3g file not found'
+          if not options.quiet:
+            Speak('ERROR, x3g file not found')
+          sys.exit(1)
+
+      upload_filepath = x3g_filename    
 
     if not options.quiet:
       Speak('uploading %s' % os.path.splitext(filename)[0])
 
-    with open(os.path.join(dirname, x3g_filename)) as file_handle:
+    with open(os.path.join(dirname, upload_filepath)) as file_handle:
       form = MultiPartForm()
-      form.add_file('file', x3g_filename, fileHandle=file_handle)
+      form.add_file('file', upload_filepath, fileHandle=file_handle)
       
       urllib2.urlopen('http://%s/upload.cgi?FTIME=%s' % (options.ip, '0x%0.8X' % GetDOSDateTime()))
 
@@ -213,8 +217,8 @@ if __name__ == '__main__':
 
       if not options.quiet:
         Speak('verifying upload')
-      remote_md5 = GetRemoteMD5('http://%s/%s' % (options.ip, x3g_filename))
-      local_md5 = GetLocalMD5(os.path.join(dirname, x3g_filename))
+      remote_md5 = GetRemoteMD5('http://%s/%s' % (options.ip, urllib.pathname2url(upload_filepath)))
+      local_md5 = GetLocalMD5(os.path.join(dirname, upload_filepath))
 
       if remote_md5 != local_md5:
         print 'Upload failed!'
@@ -228,5 +232,4 @@ if __name__ == '__main__':
     if options.delete:
       os.remove(options.file)
       if options.x3g:
-        os.remove(os.path.join(dirname, x3g_filename))
-
+        os.remove(os.path.join(dirname, upload_filepath))
